@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+#
+# Ensures that NODE_AUTH_TOKEN is set before executing a command. If NODE_AUTH_TOKEN is
+# not set, we'll attempt to read a value from ~/.ssh/af-github-npm-token. If no such
+# file exists, we'll print some instructions so the developer who's running the command
+# understands why they need a GitHub access token and how to get one.
+#
+# See also: .npmrc, where NODE_AUTH_TOKEN is read and used to authenticate against the
+# private GitHub NPM registry for any packages scoped with @a-forsythe.
+
+# Don't override NODE_AUTH_TOKEN if it's already set
+if [ "$NODE_AUTH_TOKEN" == "" ]; then
+    # Read the first line of the file and define NODE_AUTH_TOKEN for the remainder of
+    # this subshell's lifetime
+    TOKEN_PATH="$HOME/.ssh/af-github-npm-token"
+    if [ -f "$TOKEN_PATH" ]; then
+        export NODE_AUTH_TOKEN
+        NODE_AUTH_TOKEN=$(head -n 1 "$TOKEN_PATH")
+    fi
+fi
+
+# If we don't have a valid token, print some instructions and exit with an error
+if [ "$NODE_AUTH_TOKEN" == "" ]; then
+    echo -e "\033[0;36m=== INSTRUCTIONS FOR ACCESSING PRIVATE NPM PACKAGES ============================\033[0m"
+    echo ""
+    echo "NPM packages with the @a-forsythe scope are installed from a private"
+    echo "registry hosted on GitHub. In order to 'npm install' these packages, you need to"
+    echo "create a Personal Access Token (PAT) with the 'read:packages' scope, which this"
+    echo "script will supply to npm commands as NODE_AUTH_TOKEN."
+    echo ""
+    echo "To generate and store a new PAT:"
+    echo ""
+    echo "  1. Log in to GitHub and visit: https://github.com/settings/tokens"
+    echo "  2. Click 'Generate new token'"
+    echo "  3. Add a Note, e.g. 'Fetch private NPM packages from GitHub registry'"
+    echo "  4. Set a reasonable expiration, e.g. 90 days"
+    echo "  5. Select the 'read:packages' scope (no others are necessary)"
+    echo "  6. Click 'Generate token'"
+    echo "  7. When presented with the token ('ghp_...'), copy it to the clipboard"
+    echo "  8. Write it to a file:"
+    echo "       echo '<pasted-token>' > ~/.ssh/af-github-npm-token"
+    echo ""
+    echo "Once you've saved a valid token, you should be able to run npm commands in this"
+    echo "repo by prefixing them with ./with-npm-auth; e.g.:"
+    echo ""
+    echo "  > ./with-npm-auth npm install"
+    echo "  > ./with-npm-auth npm upgrade @a-forsythe/cooljslib"
+    echo ""
+    echo -e "\033[0;36m================================================================================\033[0m"
+    echo ""
+    echo -e "\033[0;31mERROR:\033[0m NODE_AUTH_TOKEN is not set and could not be resolved from:"
+    echo " - $TOKEN_PATH"
+    echo ""
+    echo -e "\033[0;36mPlease see the instructions above to configure access to private dependencies.\033[0m"
+    echo ""
+    exit 1
+fi
+
+# Run the command that was supplied after './with-npm-auth', w/ NODE_AUTH_TOKEN exported
+"$@"

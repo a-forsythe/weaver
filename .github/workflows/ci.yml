@@ -1,0 +1,47 @@
+name: weaver CI
+on:
+  push: {}
+jobs:
+  build:
+    name: Release weaver
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # Allow repo contents to be read (required for checkout) and written (required to
+      # push commits with image tag updates / version bumps)
+      contents: write
+      # Allow the CI job to publish new packages of the client library to the private
+      # NPM registry on GitHub
+      packages: write
+
+    steps:
+      # Fetch full repo history (needed to compute version number bump in publish.sh)
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # Set up a Node build environment and install dependencies
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: .nvmrc
+          registry-url: https://npm.pkg.github.com
+          scope: "@a-forsythe"
+      - name: Install dependencies
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm ci
+
+      # Build to dist/, then run our publish script: if we're running in the 'main'
+      # branch and the build has meaningfully changed since the last release, it'll bump
+      # the package version, commit/tag that change, and run npm publish
+      - name: Build dist with tsc
+        run: npm run build
+      - name: Publish npm package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ./publish.sh
